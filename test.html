@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Собери свет</title>
+    <style>
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #000; }
+        canvas { background-color: #111; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Загрузка звуковых эффектов
+        const collectSound = new Audio('light-collect.mp3');
+        const moveSound = new Audio('move-sound.mp3');
+        moveSound.loop = true;
+
+        // Игровые переменные
+        const player = { x: canvas.width / 2, y: canvas.height / 2, size: 20, lightRadius: 50, speed: 3 };
+        let lights = [];
+        let score = 0;
+        let isMoving = false;
+        let timeLeft = 30; // Таймер на 30 секунд
+        let gameOver = false; // Флаг окончания игры
+
+        // Создание света
+        function spawnLight() {
+            const size = 12;
+            const x = Math.random() * (canvas.width - size * 2) + size;
+            const y = Math.random() * (canvas.height - size * 2) + size;
+            lights.push({ x, y, size });
+        }
+
+        // Функция движения игрока
+        function movePlayer() {
+            if (gameOver) return; // Останавливаем движение при окончании игры
+
+            isMoving = false;
+            if (keys["ArrowUp"]) { player.y -= player.speed; isMoving = true; }
+            if (keys["ArrowDown"]) { player.y += player.speed; isMoving = true; }
+            if (keys["ArrowLeft"]) { player.x -= player.speed; isMoving = true; }
+            if (keys["ArrowRight"]) { player.x += player.speed; isMoving = true; }
+
+            // Звук движения
+            if (isMoving && moveSound.paused) {
+                moveSound.play();
+            } else if (!isMoving && !moveSound.paused) {
+                moveSound.pause();
+                moveSound.currentTime = 0;
+            }
+        }
+
+        // Проверка сбора света
+        function collectLight() {
+            lights.forEach((light, index) => {
+                const dx = player.x - light.x;
+                const dy = player.y - light.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < player.size + light.size) {
+                    lights.splice(index, 1);
+                    player.lightRadius += 10;
+                    score += 10;
+
+                    // Звук сбора света
+                    collectSound.currentTime = 0;
+                    collectSound.play();
+
+                    spawnLight();
+                }
+            });
+        }
+
+        // Обратный отсчет таймера
+        function updateTimer() {
+            if (gameOver) return; // Останавливаем таймер, если игра окончена
+
+            if (timeLeft > 0) {
+                timeLeft -= 1;
+            } else {
+                gameOver = true;
+                moveSound.pause(); // Останавливаем звук движения при завершении игры
+            }
+        }
+
+        // Проверка условий выигрыша и проигрыша
+        function checkGameOver() {
+            if (gameOver && score < 150) {
+                ctx.fillStyle = "red";
+                ctx.font = "40px Comfortaa";
+                ctx.fillText("Вы проиграли", canvas.width / 2 - 100, canvas.height / 2);
+            } else if (score >= 150) {
+                gameOver = true;
+                ctx.fillStyle = "green";
+                ctx.font = "40px Comfortaa";
+                ctx.fillText("Вы выиграли!", canvas.width / 2 - 100, canvas.height / 2);
+            }
+        }
+
+        // Обновление игры
+        function update() {
+            if (!gameOver) {
+                movePlayer();
+                collectLight();
+                checkGameOver();
+            }
+        }
+
+        // Отрисовка
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Отрисовка света игрока
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.lightRadius, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255, 255, 100, 0.1)";
+            ctx.fill();
+
+            // Отрисовка игрока
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+            ctx.fillStyle = "yellow";
+            ctx.fill();
+
+            // Отрисовка световых частиц
+            lights.forEach(light => {
+                ctx.beginPath();
+                ctx.arc(light.x, light.y, light.size, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255, 255, 150, 0.8)";
+                ctx.fill();
+            });
+
+            // Отображение очков
+            ctx.fillStyle = "white";
+            ctx.font = "20px Comfortaa";
+            ctx.fillText("Счет: " + score, 20, 30);
+
+            // Отображение таймера по центру экрана
+            ctx.fillStyle = "white";
+            ctx.font = "40px Comfortaa"; // Увеличенный шрифт для таймера
+            ctx.fillText("Время: " + timeLeft, canvas.width / 2 - 80, canvas.height / 2 - 50);
+
+            // Пояснение к заданию
+            ctx.fillStyle = "white";
+            ctx.font = "20px Comfortaa";
+            ctx.fillText("Собери 15 лучиков света за 30 секунд", 20, 90);
+
+            // Проверка проигрыша
+            checkGameOver();
+        }
+
+        // Игровой цикл
+        function gameLoop() {
+            update();
+            draw();
+            if (!gameOver) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Таймер с интервалом в 1 секунду
+        setInterval(updateTimer, 1000);
+
+        // Управление клавишами
+        const keys = {};
+        window.addEventListener("keydown", (e) => keys[e.key] = true);
+        window.addEventListener("keyup", (e) => keys[e.key] = false);
+
+        // Запуск игры
+        for (let i = 0; i < 5; i++) spawnLight();
+        gameLoop();
+    </script>
+</body>
+</html>
